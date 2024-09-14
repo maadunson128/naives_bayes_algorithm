@@ -3,8 +3,10 @@ import re #regex library
 import numpy as np
 import pandas as pd
 from collections import defaultdict
+from sklearn.datasets import fetch_20newsgroups
+from sklearn.model_selection import train_test_split
 
-
+print('hello')
 #Prepocessing the data
 def preprocess_data(str_data)->str:
     '''
@@ -76,7 +78,7 @@ class Naives_bayes:
 
         self.examples = dataset
         self.labels= labels
-        self.bow_dicts = np.array([defaultdict(lambda:0) for index in (self.classes.shape[0])]) #creating BoW for each classes
+        self.bow_dicts = np.array([defaultdict(lambda:0) for index in range(self.classes.shape[0])]) #creating BoW for each classes
 
         if not isinstance(self.examples, np.ndarray):
             self.examples = np.array(self.examples)
@@ -86,7 +88,7 @@ class Naives_bayes:
 
         for cat_index, cat in enumerate(self.classes):
 
-            all_cat_examples = self.examples[self.classes == cat]
+            all_cat_examples = self.examples[self.labels == cat]
 
             cleaned_examples = [preprocess_data(cat_examples) for cat_examples in all_cat_examples]
             cleaned_examples = pd.DataFrame(data=cleaned_examples)
@@ -115,7 +117,7 @@ class Naives_bayes:
             prob_classes[cat_index] = np.sum(self.labels == cat) / float(self.labels.shape[0])
 
             #count of words for each class
-            cat_words_count = np.sum(np.array(list(self.bow_dicts[cat_index].values()))) + 1
+            cat_words_count[cat_index] = np.sum(np.array(list(self.bow_dicts[cat_index].values()))) + 1
 
             #get all words of the category
             all_words += list(self.bow_dicts[cat_index].keys())
@@ -126,13 +128,13 @@ class Naives_bayes:
         self.vocab_length = self.vocab.shape[0] # |V|
 
         #Findind the numerator value: count of each class + |V| + 1
-        denom = np.array([(cat_words_count[cat_index] + self.vocab_length + 1) for cat_index in range(self.classes.shape[0])])
+        denom = np.array([cat_words_count[cat_index] + self.vocab_length + 1 for cat_index in range(self.classes.shape[0])])
 
         '''
         We have find out the probabilities and classes info. We are make these all info in a single array.
         '''
 
-        self.cat_info = [(self.bow_dicts[cat_index], prob_classes[cat_index], denom[cat_index]) for cat_index, cat in enumerate(self.classes.shape[0])]
+        self.cat_info = [(self.bow_dicts[cat_index], prob_classes[cat_index], denom[cat_index]) for cat_index, cat in enumerate(self.classes)]
         self.cat_info = np.array(self.cat_info)
 
 
@@ -153,9 +155,9 @@ class Naives_bayes:
         '''
 
         #Calculating the likelihood probability for each classes
-        likelihood_prob = np.empty(self.classes.shape[0]) # to store the likelihood probabilities for each classes
+        likelihood_prob = np.zeros(self.classes.shape[0]) # to store the likelihood probabilities for each classes
 
-        for cat_index, cat in enumerate(self.classes.shape[0]):
+        for cat_index, cat in enumerate(self.classes):
             for token in test_example.split():
                 #getting the count of each word and adding plus for the numerator
                 test_token_count = self.cat_info[cat_index][0].get(token, 0) + 1
@@ -170,7 +172,7 @@ class Naives_bayes:
         #calculating posterior probability
         post_prob = np.empty(self.classes.shape[0]) # to store the posterior probabilities for each classes
 
-        for cat_index, cat in enumerate(self.classes.shape[0]):
+        for cat_index, cat in enumerate(self.classes):
             #calculating the posterior probablity by adding with the log of likelihood probabilty
             post_prob[cat_index] = np.log(self.cat_info[cat_index][1]) + likelihood_prob[cat_index]
 
@@ -200,13 +202,92 @@ class Naives_bayes:
             post_prob = self.getTestProb(cleaned_example)
 
             #Prediction the class of the example by class which having the maximum posterior probability
-            predictions.append(np.classes[np.argmax(post_prob)])
+            predictions.append(self.classes[np.argmax(post_prob)])
 
         return predictions
 
 
+''''
+We are going to load a dataset from sklean library.
+Dataset :
+    It's a newsgroup dataset which contains the newsgroups post on 20 topics.
+    So, the dataset will have 20 classes.
+    But, we will be only taking four classes of them for training and testing.
+'''
 
 
+
+
+# #training the dataset
+# categories=['alt.atheism', 'soc.religion.christian','comp.graphics', 'sci.med'] 
+# newsgroup_train = fetch_20newsgroups(subset = 'train', categories=categories)
+
+# train_data = newsgroup_train.data
+# train_label = newsgroup_train.target
+
+# #iniating a object of Naive Bayes class
+# nb = Naives_bayes(np.unique(train_label))
+
+# #training the newsgroup data
+# print("---------Training started-----------")
+# nb.train(train_data, train_label)
+
+# print("---------Training completed----------")
+
+
+# #loading the dataset for testing
+# newsgroup_test = fetch_20newsgroups(subset='test', categories=categories)
+
+# test_data = newsgroup_test.data
+# test_labels = newsgroup_test.target
+
+# print(f'Number of test examples: {len(test_data)}')
+# print(f'Number of test labels: {len(test_labels)}')
+
+
+# #testing the accuracy of model by validating with the predictions made and the test data
+
+# #Calculating the probabilities and preedicting the data
+# pred_classes = nb.test(test_data)
+
+
+# #calculating the efficiency by comparing with the test data
+# efficiency = np.sum(pred_classes == test_labels)/float(test_labels.shape[0]) * 100
+
+# print(f"Efficiency of the NB model: {efficiency} %")
+
+
+
+'''
+Checking the models performance with Kaggle dataset
+
+'''
+#Loading the Kaggle train dataset
+training_data = pd.read_csv("labeledTrainData.tsv", sep = '\t')
+
+#We separated the review and sentiment data
+x_train = training_data['review'].values
+y_train = training_data['sentiment'].values
+
+
+train_data, test_data, train_labels, test_labels = train_test_split(x_train, y_train, test_size=0.25, shuffle=True, random_state=42, stratify=y_train)
+
+classes = np.unique(train_labels)
+
+#iniating another object for Naives bayes model
+nb1 = Naives_bayes(classes)
+
+print("---------Training started-----------")
+nb1.train(train_data, train_labels)
+print("---------Training completed---------")
+
+#Predicting the classes for the test data
+predicted_classes = nb1.test(test_data)
+
+#checking for the efficiency of the Naives Model on the Kaggle dataset
+efficiency = np.sum(predicted_classes == test_labels)/float(test_labels.shape[0]) * 100
+
+print(f"The efficiency of the model on Kaggle dataset: {efficiency} %")
 
 
 
